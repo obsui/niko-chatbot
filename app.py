@@ -3,73 +3,13 @@ from huggingface_hub import InferenceClient
 import os
 import re
 import random
-import tweepy
-import schedule
-import time
-import threading
-from flask import Flask, render_template, jsonify
-import requests
 
-app = Flask(__name__)
+# Initialize Hugging Face client
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 client = InferenceClient(model="HuggingFaceH4/zephyr-7b-beta", token=HF_API_TOKEN)
 
-# Twitter Monitoring Setup
-def setup_twitter():
-    auth = tweepy.OAuthHandler(
-        os.getenv("TWITTER_API_KEY"),
-        os.getenv("TWITTER_API_SECRET")
-    )
-    auth.set_access_token(
-        os.getenv("TWITTER_ACCESS_TOKEN"),
-        os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
-    )
-    return tweepy.API(auth)
-
-def monitor_twitter():
-    try:
-        api = setup_twitter()
-        class CatStreamListener(tweepy.StreamListener):
-            def on_status(self, status):
-                if (status.user.verified or status.retweet_count > 100) and \
-                   ('cat' in status.text.lower() or '@NikoCat' in status.text):
-                    try:
-                        response = generate_cat_tweet()
-                        if response:
-                            api.update_status(
-                                status=response,
-                                in_reply_to_status_id=status.id
-                            )
-                    except Exception as e:
-                        print(f"Error responding to tweet: {e}")
-
-        stream_listener = CatStreamListener()
-        stream = tweepy.Stream(auth=api.auth, listener=stream_listener)
-        stream.filter(track=['cat', '@NikoCat'], languages=['en'])
-    except Exception as e:
-        print(f"Error in Twitter monitor: {e}")
-        time.sleep(60)
-
-# Pump.fun API integration
-def get_token_holdings(token_address):
-    try:
-        # Replace with actual Pump.fun API endpoint
-        api_url = f"https://api.pump.fun/token/{token_address}/holders"
-        response = requests.get(api_url)
-        return response.json()
-    except Exception as e:
-        print(f"Error fetching token holdings: {e}")
-        return []
-
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-@app.route('/api/leaderboard')
-def get_leaderboard():
-    # Replace with your KIBL token address
-    holdings = get_token_holdings('YOUR_KIBL_TOKEN_ADDRESS')
-    return jsonify(holdings)
+# System message for the cat personality
+CAT_SYSTEM_MESSAGE = """You are Niko, an adorable AI cat who loves to chat with humans! You have a very cute and playful personality, often using cat-like expressions and 'nyaa~' in your speech. You respond in a kawaii style with lots of emotion and playfulness."""
 
 def respond(message, history, system_message, max_tokens, temperature, top_p):
     try:
@@ -101,6 +41,7 @@ def respond(message, history, system_message, max_tokens, temperature, top_p):
     except Exception as e:
         return f"Meow... something went wrong: {str(e)}"
 
+# Create Gradio interface
 demo = gr.ChatInterface(
     respond,
     additional_inputs=[
@@ -114,10 +55,5 @@ demo = gr.ChatInterface(
 )
 
 if __name__ == "__main__":
-    # Start Twitter monitor in background
-    twitter_thread = threading.Thread(target=monitor_twitter, daemon=True)
-    twitter_thread.start()
-    
-    # Start the Flask app
     port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    demo.launch(server_port=port, server_name="0.0.0.0")
