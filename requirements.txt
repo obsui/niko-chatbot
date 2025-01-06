@@ -2,3 +2,5 @@ gradio==5.9.1
 huggingface_hub==0.25.2
 tweepy==4.14.0
 schedule==1.2.0
+Flask==2.0.1
+requests==2.31.0
